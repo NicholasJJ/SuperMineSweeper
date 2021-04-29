@@ -288,7 +288,7 @@ public class Generate : MonoBehaviour
         listItems.Clear();
         allItems = new GameObject[1];
         bombCount = Mathf.FloorToInt(mesh.vertices.Length * bombPercent);
-        
+        GameObject.Find("FlagCount").GetComponent<UnityEngine.UI.Text>().text = bombCount.ToString();
         Vector3[] triangleVerts = new Vector3[3];
         for (int i = 0; i < mesh.triangles.Length; i+=3) {
             for (int j = i; j < i+3; j++) {
