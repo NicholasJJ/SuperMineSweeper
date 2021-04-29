@@ -238,19 +238,22 @@ public class Generate : MonoBehaviour
         return nbores;
     }
 
-    void placePoly(Vector3 v, Vector3[] tri, float scale) {
-        //v *= scale;
-        //tri[0] *= scale;
-        //tri[1] *= scale;
-        //tri[2] *= scale;
+    void placePoly(Vector3 v, Vector3[] tri, Vector3 normal) {
         if (!GameObject.Find("point " + v)) {
             GameObject m = Instantiate(cube, gameObject.transform);
             listItems.Add(m);
             m.name = "point " + v;
             m.transform.localPosition = v;
-            m.transform.LookAt(v.normalized * (-2 * v.magnitude));
+            //m.transform.LookAt(v.normalized * (-2 * v.magnitude));
+            m.transform.LookAt(v + -normal.normalized);
             m.GetComponent<MineItem>().onPoly = true;
-        } else { Debug.Log("foundObject"); }
+        } else {
+            GameObject otherVert = GameObject.Find("point " + v);
+            Vector3 newNormal = ((otherVert.transform.forward * otherVert.GetComponent<MineItem>().duplicatePoints)
+                - normal.normalized).normalized;
+            otherVert.transform.LookAt(v + newNormal.normalized);
+            otherVert.GetComponent<MineItem>().duplicatePoints++;
+        }
         GameObject thisVert = GameObject.Find("point " + v);
         foreach (Vector3 vertex in tri) {
             thisVert.GetComponent<MineItem>().addNeighborName(vertex);
@@ -287,17 +290,17 @@ public class Generate : MonoBehaviour
         clearBoard();
         listItems.Clear();
         allItems = new GameObject[1];
-        bombCount = Mathf.FloorToInt(mesh.vertices.Length * bombPercent);
-        GameObject.Find("FlagCount").GetComponent<UnityEngine.UI.Text>().text = bombCount.ToString();
         Vector3[] triangleVerts = new Vector3[3];
         for (int i = 0; i < mesh.triangles.Length; i+=3) {
             for (int j = i; j < i+3; j++) {
                 triangleVerts[j - i] = mesh.vertices[mesh.triangles[j]];
             }
             for (int j = i; j < i+3; j++) {
-                placePoly(mesh.vertices[mesh.triangles[j]], triangleVerts, 1);
+                placePoly(mesh.vertices[mesh.triangles[j]], triangleVerts, mesh.normals[mesh.triangles[j]]);
             }
         }
+        bombCount = Mathf.FloorToInt(listItems.Count * bombPercent);
+        GameObject.Find("FlagCount").GetComponent<UnityEngine.UI.Text>().text = bombCount.ToString();
         foreach (GameObject point in listItems) {
             point.GetComponent<MineItem>().SetNeighbors(polyNeighbors(point));
         }

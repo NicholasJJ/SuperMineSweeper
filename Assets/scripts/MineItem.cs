@@ -10,6 +10,7 @@ public class MineItem : MonoBehaviour
     public GameObject numberPng;
 
     public bool onPoly = false;
+    public int duplicatePoints = 1;
 
     [SerializeField] private ArrayList neighborNames = new ArrayList();
     [SerializeField] private GameObject[] neighbors;

@@ -2309,7 +2309,8 @@ PrefabInstance:
         type: 3}
       propertyPath: cubeMesh
       value: 
-      objectReference: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+      objectReference: {fileID: -5495902117074765545, guid: 46d46512a0c6547fb809a337320b4e45,
+        type: 3}
     - target: {fileID: 1849140391411465209, guid: c7a093221086343faaced83aad31fd62,
         type: 3}
       propertyPath: triangle
