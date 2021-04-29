@@ -9,8 +9,12 @@ public class Generate : MonoBehaviour
     public GameObject hexagon;
     public GameObject triangle;
     public GameObject cube;
+    public GameObject line;
     [SerializeField] public GameObject[][] gridBoard;
     public GameObject[] allItems;
+
+    public Mesh cubeMesh;
+    public ArrayList listItems = new ArrayList();
 
     [SerializeField] private int rowCount;
     [SerializeField] private int colCount;
@@ -28,19 +32,40 @@ public class Generate : MonoBehaviour
     private GameObject camera;
     [SerializeField] private float moveSpeed;
 
+    float timer;
+    bool waiting = false;
+    float pbombs;
+    Mesh pmesh;
+
     void Start()
     {
         camera = GameObject.FindGameObjectWithTag("MainCamera");
+
+        float distSample = 2f / Vector3.Distance(cubeMesh.vertices[cubeMesh.triangles[0]], cubeMesh.vertices[cubeMesh.triangles[1]]);
+        Debug.Log(cubeMesh.vertices[0] + " " + distSample + " " + cubeMesh.vertices[0] * distSample);
+        Vector3[] vertices = new Vector3[cubeMesh.vertices.Length];
+        for (int i = 0; i < vertices.Length; i++) {
+            vertices[i] = cubeMesh.vertices[i] * distSample;
+        }
+        cubeMesh.vertices = vertices;
+        
+
+
+        Debug.Log(cubeMesh.vertices[0]);
+        
+
         setUp(35, 15, 10, "C");
+
     }
 
     private void Update()
     {
         if (moving) {
-            if (Input.GetKey(KeyCode.A))
-                transform.eulerAngles += new Vector3(0, moveSpeed * Time.deltaTime, 0);
-            if (Input.GetKey(KeyCode.D))
-                transform.eulerAngles -= new Vector3(0, moveSpeed * Time.deltaTime, 0);
+            transform.Rotate(moveSpeed * Input.GetAxis("Vertical") * Time.deltaTime, moveSpeed * Input.GetAxis("Horizontal") * Time.deltaTime, 0, Space.World);
+        }
+        if (waiting && Time.time > timer + 0.1f) {
+            waiting = false;
+            setUpPoly(pbombs, pmesh);
         }
     }
 
@@ -61,21 +86,31 @@ public class Generate : MonoBehaviour
             setUp(25, 15, 40, "C");
         } else if (s.Equals("Cylinder Large")) {
             setUp(35, 18, 140, "C");
+        } else if (s.Equals("Poly")) {
+            slowSetupPoly(.14f, cubeMesh);
         }
     }
 
     public void lose() {
         done = true;
-        foreach (GameObject s in allItems) {
-            if (s.GetComponent<MineItem>().isBomb)
-                s.GetComponent<MineItem>().dig();
+        if (allItems.Length > 2) {
+            foreach (GameObject s in allItems) {
+                if (s.GetComponent<MineItem>().isBomb)
+                    s.GetComponent<MineItem>().dig();
+            }
+        } else {
+            foreach (GameObject s in listItems) {
+                if (s.GetComponent<MineItem>().isBomb)
+                    s.GetComponent<MineItem>().dig();
+            }
         }
         GameObject.Find("stateImage").GetComponent<Image>().sprite = skull;
     }
 
     public void successfulDig() {
         totalDug++;
-        if (totalDug + bombCount == allItems.Length) {
+        if ((allItems.Length > 2 && totalDug + bombCount == allItems.Length)
+            || (allItems.Length == 1 && totalDug + bombCount == listItems.Count)) {
             done = true;
             GameObject.Find("stateImage").GetComponent<Image>().sprite = star;
         }
@@ -203,17 +238,77 @@ public class Generate : MonoBehaviour
         return nbores;
     }
 
-    void setUp(int rows, int columns, int bombs, string style) {
-        transform.eulerAngles = Vector3.zero;
-        moving = false;
-        done = false;
-        activated = false;
-        totalDug = 0;
-        GameObject.Find("Timer").GetComponent<timer>().clockReset();
-        GameObject.Find("stateImage").GetComponent<Image>().sprite = clock;
-        foreach(Transform child in transform) {
-            Destroy(child.gameObject);
+    void placePoly(Vector3 v, Vector3[] tri, float scale) {
+        //v *= scale;
+        //tri[0] *= scale;
+        //tri[1] *= scale;
+        //tri[2] *= scale;
+        if (!GameObject.Find("point " + v)) {
+            GameObject m = Instantiate(cube, gameObject.transform);
+            listItems.Add(m);
+            m.name = "point " + v;
+            m.transform.localPosition = v;
+            m.transform.LookAt(v.normalized * (-2 * v.magnitude));
+            m.GetComponent<MineItem>().onPoly = true;
+        } else { Debug.Log("foundObject"); }
+        GameObject thisVert = GameObject.Find("point " + v);
+        foreach (Vector3 vertex in tri) {
+            thisVert.GetComponent<MineItem>().addNeighborName(vertex);
+            Vector3 thispos = thisVert.transform.localPosition;
+            string lineName = Vector3.Min(thispos, vertex).ToString() + Vector3.Max(thispos, vertex).ToString();
+            if (!GameObject.Find(lineName)) {
+                GameObject l = Instantiate(line, transform);
+                l.name = lineName;
+                l.GetComponent<LineRenderer>().SetPosition(0, thispos);
+                l.GetComponent<LineRenderer>().SetPosition(1, vertex);
+            }
         }
+            
+    }
+
+    ArrayList polyNeighbors(GameObject s) {
+        ArrayList ns = new ArrayList();
+        ArrayList nsVectors = s.GetComponent<MineItem>().getNeighborNames();
+        foreach (Vector3 v in nsVectors) {
+            ns.Add(GameObject.Find("point " + v));
+        }
+        return ns;
+    }
+
+    void slowSetupPoly(float bombs, Mesh mesh) {
+        clearBoard();
+        timer = Time.time;
+        pbombs = bombs;
+        pmesh = mesh;
+        waiting = true;
+    }
+
+    void setUpPoly(float bombPercent, Mesh mesh) {
+        clearBoard();
+        listItems.Clear();
+        allItems = new GameObject[1];
+        bombCount = Mathf.FloorToInt(mesh.vertices.Length * bombPercent);
+        
+        Vector3[] triangleVerts = new Vector3[3];
+        for (int i = 0; i < mesh.triangles.Length; i+=3) {
+            for (int j = i; j < i+3; j++) {
+                triangleVerts[j - i] = mesh.vertices[mesh.triangles[j]];
+            }
+            for (int j = i; j < i+3; j++) {
+                placePoly(mesh.vertices[mesh.triangles[j]], triangleVerts, 1);
+            }
+        }
+        foreach (GameObject point in listItems) {
+            point.GetComponent<MineItem>().SetNeighbors(polyNeighbors(point));
+        }
+
+        camera.transform.localPosition = new Vector3(0, 0, -10);
+        camera.GetComponent<Camera>().orthographic = false;
+        moving = true;
+    }
+
+    void setUp(int rows, int columns, int bombs, string style) {
+        clearBoard();
         rowCount = rows;
         colCount = columns;
         bombCount = bombs;
@@ -256,22 +351,51 @@ public class Generate : MonoBehaviour
         GameObject.Find("FlagCount").GetComponent<UnityEngine.UI.Text>().text = bombs.ToString();
     }
 
-    public void activate(Vector2 start) {
+    void clearBoard() {
+        transform.eulerAngles = Vector3.zero;
+        moving = false;
+        done = false;
+        activated = false;
+        totalDug = 0;
+        GameObject.Find("Timer").GetComponent<timer>().clockReset();
+        GameObject.Find("stateImage").GetComponent<Image>().sprite = clock;
+        foreach (Transform child in transform)
+        {
+            Destroy(child.gameObject);
+        }
+    }
+
+    public void activate(Vector2 start, bool poly, Vector3 start3) {
         activated = true;
         for (int k = 0; k < bombCount;)
         {
-            int r = Random.Range(0, colCount * rowCount);
-            MineItem rMI = allItems[r].GetComponent<MineItem>();
-            Vector2 diff = rMI.loc - start;
-            if (!rMI.isBomb && !(Mathf.Abs(diff.x) < 3 && Mathf.Abs(diff.y) < 3)) {
-                rMI.isBomb = true;
-                allItems[r].name += " B";
-                k++;
+            if (poly) {
+                int r = Random.Range(0, listItems.Count);
+                MineItem rMI = ((GameObject) listItems[r]).GetComponent<MineItem>();
+                if (!rMI.isBomb && rMI.transform.localPosition != start3) {
+                    rMI.isBomb = true;
+                    ((GameObject)listItems[r]).name += " B";
+                    k++;
+                }
+            } else {
+                int r = Random.Range(0, colCount * rowCount);
+                MineItem rMI = allItems[r].GetComponent<MineItem>();
+                Vector2 diff = rMI.loc - start;
+                if (!rMI.isBomb && !(Mathf.Abs(diff.x) < 3 && Mathf.Abs(diff.y) < 3)) {
+                    rMI.isBomb = true;
+                    allItems[r].name += " B";
+                    k++;
+                }
             }
         }
-        foreach (GameObject s in allItems)
-        {
-            s.GetComponent<MineItem>().SetNumber();
-        }
+        if (poly) {
+            foreach (Object s in listItems) {
+                ((GameObject) s).GetComponent<MineItem>().SetNumber();
+            }
+        } else {
+            foreach (GameObject s in allItems) {
+                s.GetComponent<MineItem>().SetNumber();
+            }
+        } 
     }
 }

@@ -9,6 +9,9 @@ public class MineItem : MonoBehaviour
     public GameObject flagPng;
     public GameObject numberPng;
 
+    public bool onPoly = false;
+
+    [SerializeField] private ArrayList neighborNames = new ArrayList();
     [SerializeField] private GameObject[] neighbors;
     [SerializeField] public bool isBomb;
     public Vector2 loc;
@@ -19,7 +22,7 @@ public class MineItem : MonoBehaviour
 
     public void dig() {
         if (!GetComponentInParent<Generate>().activated) {
-            GetComponentInParent<Generate>().activate(loc);
+            GetComponentInParent<Generate>().activate(loc, onPoly, transform.localPosition);
         }
         if (!dug && !flagged) {
             dug = true;
@@ -62,10 +65,19 @@ public class MineItem : MonoBehaviour
             }
         }
     }
+    public void addNeighborName(Vector3 name) {
+        if (name != transform.localPosition && !neighborNames.Contains(name))
+            neighborNames.Add(name);
+    }
+
+    public ArrayList getNeighborNames() {
+        return neighborNames;
+    }
 
     public void SetNeighbors(ArrayList ns) {
         neighbors = new GameObject[ns.Count];
         ns.CopyTo(neighbors);
+        
     }
 
     public void SetNumber() {
