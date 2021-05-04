@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Dummiesman;
+using System.IO;
 
 public class Generate : MonoBehaviour
 {
@@ -12,6 +14,9 @@ public class Generate : MonoBehaviour
     public GameObject line;
     [SerializeField] public GameObject[][] gridBoard;
     public GameObject[] allItems;
+
+    [SerializeField] private Text objName;
+    [SerializeField] private Text buildDebug;
 
     public Mesh cubeMesh;
     public ArrayList listItems = new ArrayList();
@@ -28,9 +33,11 @@ public class Generate : MonoBehaviour
     public bool done = false;
     public int totalDug;
 
-    private bool moving;
+    private bool movingLeftRight;
+    private bool movingUpDown;
     private GameObject camera;
-    [SerializeField] private float moveSpeed;
+    [SerializeField] private float rotateSpeed;
+    [SerializeField] private float translateSpeed;
 
     float timer;
     bool waiting = false;
@@ -60,9 +67,20 @@ public class Generate : MonoBehaviour
 
     private void Update()
     {
-        if (moving) {
-            transform.Rotate(moveSpeed * Input.GetAxis("Vertical") * Time.deltaTime, moveSpeed * Input.GetAxis("Horizontal") * Time.deltaTime, 0, Space.World);
+        if (Input.GetKey(KeyCode.LeftShift)) {
+            transform.Translate(0.5f * translateSpeed * Input.GetAxis("Horizontal") * Time.deltaTime, 0.5f * translateSpeed * Input.GetAxis("Vertical") * Time.deltaTime, 0, Space.World);
+        } else {
+            if (movingLeftRight)
+            {
+                transform.Rotate(0, rotateSpeed * Input.GetAxis("Horizontal") * Time.deltaTime, 0, Space.World);
+            }
+            if (movingUpDown)
+            {
+                transform.Rotate(rotateSpeed * Input.GetAxis("Vertical") * Time.deltaTime, 0, 0, Space.World);
+            }
         }
+        
+        
         if (waiting && Time.time > timer + 0.1f) {
             waiting = false;
             setUpPoly(pbombs, pmesh);
@@ -87,7 +105,30 @@ public class Generate : MonoBehaviour
         } else if (s.Equals("Cylinder Large")) {
             setUp(35, 18, 140, "C");
         } else if (s.Equals("Poly")) {
-            slowSetupPoly(.14f, cubeMesh);
+            slowSetupPoly(.2f, cubeMesh);
+        }
+    }
+
+    void beginFromObj() {
+        string s = objName.text;
+        string directory = System.IO.Directory.GetCurrentDirectory();
+        Mesh importMesh = new Mesh();
+        string filePath = directory + "/" + s + ".obj";
+        buildDebug.text = filePath;
+        if (File.Exists(filePath)) {
+            importMesh = new OBJLoader().Load(filePath).GetComponentInChildren<MeshFilter>().mesh;
+            Destroy(GameObject.Find(s));
+            float distSample = 2f / Vector3.Distance(importMesh.vertices[importMesh.triangles[0]], importMesh.vertices[importMesh.triangles[1]]);
+            Vector3[] vertices = new Vector3[importMesh.vertices.Length];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                vertices[i] = importMesh.vertices[i] * distSample;
+            }
+            importMesh.vertices = vertices;
+            slowSetupPoly(.2f, importMesh);
+        } else {
+            Debug.Log("File DNE!");
+            buildDebug.text += " FileDNE!";
         }
     }
 
@@ -307,7 +348,8 @@ public class Generate : MonoBehaviour
 
         camera.transform.localPosition = new Vector3(0, 0, -10);
         camera.GetComponent<Camera>().orthographic = false;
-        moving = true;
+        movingLeftRight = true;
+        movingUpDown = true;
     }
 
     void setUp(int rows, int columns, int bombs, string style) {
@@ -345,7 +387,7 @@ public class Generate : MonoBehaviour
         if (style.Equals("C")) {
             camera.transform.localPosition = new Vector3(0, columns / 2, -(columns + rows)/2);
             camera.GetComponent<Camera>().orthographic = false;
-            moving = true;
+            movingLeftRight = true;
         } else {
             camera.transform.localPosition = new Vector3(rows / 2, columns / 2, -10);
             camera.GetComponent<Camera>().orthographic = true;
@@ -356,7 +398,9 @@ public class Generate : MonoBehaviour
 
     void clearBoard() {
         transform.eulerAngles = Vector3.zero;
-        moving = false;
+        transform.position = Vector3.zero;
+        movingLeftRight = false;
+        movingUpDown = false;
         done = false;
         activated = false;
         totalDug = 0;
@@ -375,7 +419,12 @@ public class Generate : MonoBehaviour
             if (poly) {
                 int r = Random.Range(0, listItems.Count);
                 MineItem rMI = ((GameObject) listItems[r]).GetComponent<MineItem>();
-                if (!rMI.isBomb && rMI.transform.localPosition != start3) {
+                bool nearStart = false;
+                foreach (GameObject n in rMI.getNeighbors()) {
+                    if (n.transform.localPosition == start3)
+                        nearStart = true;
+                }
+                if (!rMI.isBomb && rMI.transform.localPosition != start3 && !nearStart) {
                     rMI.isBomb = true;
                     ((GameObject)listItems[r]).name += " B";
                     k++;

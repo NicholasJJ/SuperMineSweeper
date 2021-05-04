@@ -81,6 +81,11 @@ public class MineItem : MonoBehaviour
         
     }
 
+    public GameObject[] getNeighbors()
+    {
+        return neighbors;
+    }
+
     public void SetNumber() {
         int num = 0;
         if (isBomb)
